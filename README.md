@@ -5,6 +5,8 @@ exactly. It ships **no game data**: tuning values, decls, models, animations, te
 effects are all read at runtime from your own installed copy of DOOM (2016). Behaviour is recovered from the
 game's own data and executable (notes with addresses under the git-ignored `gamedata/re/`).
 
+**Progress: about 76% of the goal** (DOOM 2016 single-player combat 1:1: movement, every weapon and mod, hands, camera, HUD and menus, FX, audio, the maps' look and the demons with their AI). Milestone table under [Status](#status).
+
 ## Status
 About 76% of the full goal (DOOM 2016 single-player combat 1:1: movement, every weapon and mod, hands,
 camera, HUD and menus, FX, audio, the maps' look and the demons with their AI). Recently merged: glory kills, the
