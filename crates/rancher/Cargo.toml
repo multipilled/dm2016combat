@@ -1,0 +1,16 @@
+[package]
+name = "rancher"
+description = "dm2016combat: DOOM (2016) gameplay testbed"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+bevy = { version = "0.19", features = ["pbr_specular_textures"] }
+glam.workspace = true
+idaudio.workspace = true
+idfx.workspace = true
+idres.workspace = true
+idswf.workspace = true
+rancher_sim.workspace = true

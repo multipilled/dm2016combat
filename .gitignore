@@ -1,0 +1,21 @@
+/target
+# Anything extracted or converted from the user's own DOOM install. Never commit these.
+/extracted
+/cache
+/gamedata
+*.bimage
+*.bmd6model
+*.bmd6anim
+*.bmd6skl
+*.bcm
+*.bfile
+*.resources
+*.pindex
+*.index
+/.locks
+
+# Game data, outputs, extracted assets and agent worktrees: never committed
+gamedata/
+out/
+extracted/
+.claude/worktrees/

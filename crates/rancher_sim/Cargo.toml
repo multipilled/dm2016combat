@@ -1,0 +1,11 @@
+[package]
+name = "rancher_sim"
+description = "Headless, deterministic DOOM (2016) player movement and weapon simulation"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+glam.workspace = true
+idres.workspace = true

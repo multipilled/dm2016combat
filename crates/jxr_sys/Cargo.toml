@@ -1,0 +1,10 @@
+[package]
+name = "jxr_sys"
+description = "Microsoft jxrlib (HD Photo / JPEG XR) decoder, vendored, with a shim for DOOM (2016) virtual-texture pages"
+edition.workspace = true
+version.workspace = true
+license = "BSD-2-Clause AND (MIT OR Apache-2.0)"
+links = "jxr"
+
+[build-dependencies]
+cc = "1"

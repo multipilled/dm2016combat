@@ -1,0 +1,13 @@
+[package]
+name = "idswf"
+description = "DOOM (2016) binary SWF GUIs: parser, AS2 runtime and renderer-agnostic draw lists"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+idres.workspace = true
+png.workspace = true
+clap.workspace = true
+bcdec_rs = "0.2.0"

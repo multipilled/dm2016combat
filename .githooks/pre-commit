@@ -1,0 +1,11 @@
+#!/bin/sh
+# Blocks commits that include game data or decompiled code. Enable with:
+#   git config core.hooksPath .githooks
+# The Microsoft Store `python` stub hangs, so a real interpreter is preferred (py launcher, then python3).
+for PY in py python3 python; do
+  if command -v "$PY" >/dev/null 2>&1 && timeout 5 "$PY" -c "import sys" >/dev/null 2>&1; then
+    exec "$PY" -B tools/check_no_game_files.py --staged
+  fi
+done
+echo "pre-commit: no Python found to run tools/check_no_game_files.py" >&2
+exit 1

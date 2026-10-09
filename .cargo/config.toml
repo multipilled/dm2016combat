@@ -1,0 +1,6 @@
+# CPU budget for the sessions sharing this checkout: each cargo invocation uses at most 4 of the
+# 12 hardware threads, so parallel builds don't saturate the machine. Build into the shared `target/`
+# (no per-session CARGO_TARGET_DIR) so dependencies compile once and concurrent builds queue on
+# cargo's directory lock instead of competing for CPU.
+[build]
+jobs = 4

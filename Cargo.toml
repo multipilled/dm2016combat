@@ -1,0 +1,35 @@
+[workspace]
+resolver = "3"
+members = ["crates/idres", "crates/doomx", "crates/rancher_sim", "crates/rancher", "crates/jxr_sys", "crates/idaudio", "crates/idswf", "crates/idfx"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+anyhow = "1"
+flate2 = "1"
+memmap2 = "0.9"
+aes = "0.8"
+cbc = "0.1"
+hmac = "0.12"
+sha2 = "0.10"
+clap = { version = "4", features = ["derive"] }
+glam = "0.30"
+serde = { version = "1", features = ["derive"] }
+lz4_flex = { version = "0.11", default-features = false, features = ["safe-decode"] }
+png = "0.17"
+idres = { path = "crates/idres" }
+jxr_sys = { path = "crates/jxr_sys" }
+idaudio = { path = "crates/idaudio" }
+rancher_sim = { path = "crates/rancher_sim" }
+idswf = { path = "crates/idswf" }
+idfx = { path = "crates/idfx" }
+
+# Bevy is slow in debug; optimise dependencies even in dev builds.
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev]
+opt-level = 1

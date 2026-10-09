@@ -1,0 +1,11 @@
+[package]
+name = "idfx"
+description = "DOOM (2016) FX and particle decls and their CPU simulation, decoded from the user's own install"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+glam.workspace = true
+idres.workspace = true

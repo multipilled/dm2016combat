@@ -1,0 +1,11 @@
+[package]
+name = "idaudio"
+description = "DOOM (2016) Wwise sound banks and streamed sounds, read from the user's own install"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+idres.workspace = true
+memmap2.workspace = true
