@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Thin wrapper (Control, 2026-10-08): the lock logic lives in the shared ~/.claude/bin/with_lock.sh
+# Thin wrapper: the lock logic lives in the shared ~/.claude/bin/with_lock.sh
 # (PID-based stale check: a holder waiting for a CPU slot keeps its lock). The lock root is this repo's main
 # checkout, next to the common .git, so every worktree shares one lock.
 #   tools/with_lock.sh <session-name> <command...>      LOCK_NAME=<name> picks a different lock (default game)
