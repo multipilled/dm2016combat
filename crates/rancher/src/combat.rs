@@ -226,7 +226,7 @@ pub fn weapons_tick(
     mut sound: Option<ResMut<crate::sound::Sound>>,
     zoom_status: Option<ResMut<ZoomStatus>>,
     view_joints: Option<Res<crate::viewanim::ViewJoints>>,
-    (demon_targets, mut demon_damage, sync_view, dealt): (Option<Res<crate::demons::DemonTargets>>, Option<ResMut<Messages<crate::demons::DemonDamage>>>, Option<Res<crate::demons::SyncView>>, Option<Res<crate::pickups::DamageDealt>>),
+    (demon_targets, mut demon_damage, sync_view, dealt, settings): (Option<Res<crate::demons::DemonTargets>>, Option<ResMut<Messages<crate::demons::DemonDamage>>>, Option<Res<crate::demons::SyncView>>, Option<Res<crate::pickups::DamageDealt>>, Option<Res<crate::settings::Settings>>),
 ) {
     use rancher_sim::demons::{DamageEvent, TraceHit};
     let attacker_origin = sim.player.physics.origin;
@@ -275,6 +275,13 @@ pub fn weapons_tick(
     // are issued once g_weaponChangeMinIntervalMS allows (idHands::SelectWeapon, or the sim-timed
     // fallback's switch_to).
     let sel = driver.select.get_or_insert_with(|| WeaponSelect::new(&combat.arsenal));
+    // g_weaponAutoSwitchOnEmpty (options menu, GAME tab), read every frame like UpdateWeapon does; the install's
+    // cvar table carries the exe default.
+    let auto_switch = settings.as_deref().and_then(|s| s.get("g_weaponAutoSwitchOnEmpty")).and_then(|v| v.trim_end_matches('f').parse::<f32>().ok()).map_or(rancher_sim::weapons::select::AUTO_SWITCH_ON_EMPTY, |v| v != 0.0);
+    sel.auto_switch_on_empty = auto_switch;
+    if let Some(h) = driver.hands.as_mut() {
+        h.auto_switch_on_empty = auto_switch;
+    }
     let mut sel_in = SelectInput { next: actions.pressed("_weapnext"), prev: actions.pressed("_weapprev"), change: actions.held("_changeweapon"), ..Default::default() };
     for (g, p) in sel_in.weap.iter_mut().enumerate() {
         *p = actions.pressed(&format!("_weap{g}"));

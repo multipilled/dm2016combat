@@ -142,6 +142,7 @@ pub fn pages(cvars: &dyn CvarStore) -> Vec<Page> {
                 v.extend([
                     item("#str_menu_game_autoswitchempty_label", "#str_menu_game_autoswitchempty_help", Toggle { cvar: "g_weaponAutoSwitchOnEmpty", invert: false, on: "1" }),
                     item("#str_menu_game_autoswitchnew_label", "#str_menu_game_autoswitchnew_help", Unsupported { choices: OFF_ON }),
+                    // INTERIM: g_weaponDoomClassicPose is stored but nothing reads it: the classic pose touches the bit-exact hands path and needs the exact-match check on TD's PC.
                     item("#str_gameoptions_doom_classic_weapon_pose_header", "#str_gameoptions_doom_classic_weapon_pose_header_desc", Toggle { cvar: "g_weaponDoomClassicPose", invert: false, on: "1" }),
                     item("#str_gameoptions_crosshair_style_header", "#str_gameoptions_crosshair_style_header_desc", List {
                         cvar: "g_reticleMode",
@@ -202,6 +203,7 @@ pub fn pages(cvars: &dyn CvarStore) -> Vec<Page> {
             enabled: true,
             items: vec![
                 item("#str_menu_system_field_aspect_ratio_label", "#str_menu_system_field_aspect_ratio_help", Unsupported { choices: &["16:9"] }),
+                // INTERIM: resolution offers only the default: the game's mode list (values per mode, fullscreen vs windowed) is not recovered from the exe; settings.rs already applies r_windowWidth / r_windowHeight.
                 item("#str_menu_system_field_resolution_label", "#str_menu_system_field_resolution_help", Unsupported { choices: &["#str_menu_video_default"] }),
                 item("#str_menu_system_field_fullscreen_label", "#str_menu_system_field_fullscreen_help", List {
                     cvar: "r_fullscreen",
@@ -213,6 +215,7 @@ pub fn pages(cvars: &dyn CvarStore) -> Vec<Page> {
                     choices: &["#str_menu_video_adaptive", "#str_menu_video_off", "#str_menu_video_on"],
                     values: &["-1", "0", "1"],
                 }),
+                // INTERIM: anti-aliasing has no effect: TAA / FXAA / SMAA are not in the ported post chain (rancher/src/post.rs).
                 item("#str_menu_system_field_antialiasing_label", "#str_menu_system_field_antialiasing_help", Unsupported {
                     choices: &[
                         "#str_menu_video_off",
@@ -237,6 +240,7 @@ pub fn pages(cvars: &dyn CvarStore) -> Vec<Page> {
                     text: SliderText::OneDecimal,
                     arrow: 0.1,
                 }),
+                // INTERIM: motion blur has no effect: the post chain has no motion blur pass yet (rancher/src/post.rs).
                 item("#str_menu_system_field_motion_blur_label", "#str_menu_system_field_motion_blur_help", Unsupported {
                     choices: &["#str_menu_video_off", "#str_menu_video_low", "#str_menu_video_medium", "#str_menu_video_high"],
                 }),
@@ -245,6 +249,7 @@ pub fn pages(cvars: &dyn CvarStore) -> Vec<Page> {
                     invert: false,
                     on: "1",
                 }),
+                // INTERIM: r_colorBlindMode is stored but has no effect: post.wgsl APPLY_COLOR_BLIND_MODE runs with mode 0 only; modes 1-3 are not recovered.
                 item("#str_menu_system_field_colorblind_mode_label", "#str_menu_system_field_colorblind_mode_help", List {
                     cvar: "r_colorBlindMode",
                     choices: &["#str_menu_video_off", "#str_menu_video_colorblind_deuteranopia", "#str_menu_video_colorblind_protanopia", "#str_menu_video_colorblind_tritanopia"],
@@ -277,8 +282,10 @@ pub fn pages(cvars: &dyn CvarStore) -> Vec<Page> {
                     ],
                 }),
                 item("#str_menu_video_resolutionscale", "#str_menu_video_resolutionscale_desc", Unsupported { choices: &["100%"] }),
+                // INTERIM: DOF has no effect: the post chain has no depth-of-field pass yet (rancher/src/post.rs).
                 item("#str_menu_video_dof", "#str_menu_video_dof_desc", Unsupported { choices: OFF_ON }),
                 item("#str_menu_video_dof_aa", "#str_menu_video_dof_aa_desc", Unsupported { choices: OFF_ON }),
+                // INTERIM: motion blur quality has no effect: the post chain has no motion blur pass yet (rancher/src/post.rs).
                 item("#str_menu_video_motionblur_quality", "#str_menu_video_motionblur_quality_desc", Unsupported { choices: QUALITY }),
                 item("#str_menu_video_sharpeningamount", "#str_menu_video_sharpeningamount_desc", Slider {
                     cvar: "r_sharpening",
@@ -302,12 +309,14 @@ pub fn pages(cvars: &dyn CvarStore) -> Vec<Page> {
                     text: SliderText::OneDecimal,
                     arrow: 0.1,
                 }),
+                // INTERIM: r_renderMode is stored but has no effect: the post chain only ports mode 0 (rancher/src/post.rs); modes 1-2 are not recovered.
                 item("#str_menu_system_field_rendering_mode_label", "#str_menu_system_field_rendering_mode_help", List {
                     cvar: "r_renderMode",
                     choices: &["#str_menu_video_default", "#str_menu_video_rendering_realistic", "#str_menu_video_rendering_cinematic"],
                     values: &["0", "1", "2"],
                 }),
                 item("#str_menu_video_computeshaders", "#str_menu_video_computeshaders_desc", Unsupported { choices: OFF_ON }),
+                // INTERIM: r_skipPlayerShadow is stored but has no effect: the third-person body is only precached for its aliases (rancher_sim/src/install.rs) and never drawn, so it casts no shadow. Needs the body as a shadow-only mesh.
                 item("#str_menu_video_playershadow", "#str_menu_video_playershadow_desc", Toggle { cvar: "r_skipPlayerShadow", invert: true, on: "1" }),
                 item("#str_menu_video_performance_metrics", "#str_menu_video_performance_metrics_desc", Unsupported { choices: &["#str_menu_video_off"] }),
                 item("#str_menu_video_graphicsapi", "#str_menu_video_graphicsapi_desc", Unsupported { choices: &["#str_menu_video_vulkan"] }),

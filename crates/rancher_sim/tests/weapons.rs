@@ -1022,3 +1022,101 @@ mod fists {
         assert!(h.requests.contains(&WebRequest::ChangeStateVia { line: 0x2105, sub: sub.clone(), to: "idle", via: "melee_l1" }), "{:?}", h.requests);
     }
 }
+
+// ---- idPlayer auto switch on empty (weapons::select, g_weaponAutoSwitchOnEmpty) ----
+
+mod auto_switch {
+    use std::sync::Arc;
+
+    use rancher_sim::weapons::{Arsenal, SelectInput, WeaponDef, WeaponSelect};
+
+    /// A slotted, selectable, auto-selectable weapon in `group` drawing one round per shot from `pool`. The group
+    /// numbers and flags stand in for the install's decls, so the test runs without an install.
+    fn def(name: &str, group: i32, pool: &str) -> Arc<WeaponDef> {
+        Arc::new(WeaponDef {
+            decl: format!("weapon/player/{name}"),
+            selection_group_index: group,
+            selectable: true,
+            auto_selectable: true,
+            can_be_slotted: true,
+            quick_swap_remember: true,
+            ammo_pool: pool.to_string(),
+            ammo_max: 10,
+            ammo_start: 10,
+            ammo_per_shot: 1,
+            ..Default::default()
+        })
+    }
+
+    /// Shotgun (current, group 1), HAR (group 3), plasma rifle (group 2); the shotgun's shells emptied.
+    fn setup(auto: bool) -> (Arsenal, WeaponSelect) {
+        let mut a = Arsenal::new(vec![def("shotgun", 1, "shells"), def("heavy_rifle_heavy_ar", 3, "bullets"), def("plasma_rifle", 2, "cells")]);
+        a.current = 0;
+        // Away from game time 0 (a pending switch time of 0 means none).
+        a.time_ms = 1000;
+        let mut s = WeaponSelect::new(&a);
+        s.auto_switch_on_empty = auto;
+        let p = a.pools.iter().position(|p| p.key == "shells").unwrap();
+        a.pools[p].count = 0;
+        (a, s)
+    }
+
+    fn run(a: &mut Arsenal, s: &mut WeaponSelect, frames: usize) -> Option<(usize, i32)> {
+        for _ in 0..frames {
+            a.time_ms += 16;
+            if let Some(w) = s.update(a, a.time_ms, &SelectInput::default()) {
+                a.current = w;
+                return Some((w, a.time_ms));
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn auto_switch_on_picks_the_highest_group_with_ammo() {
+        let (mut a, mut s) = setup(true);
+        assert!(a.is_empty(0));
+        let t0 = a.time_ms + 16;
+        // UpdateWeapon selects on the frame the weapon is empty and issues it on the next one.
+        assert_eq!(run(&mut a, &mut s, 5), Some((1, t0 + 16)), "the HAR (group 3) beats the plasma rifle (group 2)");
+    }
+
+    #[test]
+    fn auto_switch_off_keeps_the_empty_weapon() {
+        let (mut a, mut s) = setup(false);
+        assert_eq!(run(&mut a, &mut s, 60), None);
+        assert_eq!(a.current, 0);
+    }
+
+    #[test]
+    fn auto_switch_prefers_the_quick_swap_reserve_and_skips_empty_weapons() {
+        let (mut a, mut s) = setup(true);
+        // Plasma rifle selected and back: it becomes the reserve (marker 1); the HAR is empty too.
+        a.pools.iter_mut().find(|p| p.key == "shells").unwrap().count = 10;
+        assert!(s.select_by_decl(&a, a.time_ms, 2));
+        assert_eq!(run(&mut a, &mut s, 2).map(|r| r.0), Some(2));
+        run(&mut a, &mut s, 30);
+        assert!(s.select_by_decl(&a, a.time_ms, 0));
+        assert_eq!(run(&mut a, &mut s, 30).map(|r| r.0), Some(0));
+        a.pools.iter_mut().find(|p| p.key == "shells").unwrap().count = 0;
+        assert_eq!(run(&mut a, &mut s, 40).map(|r| r.0), Some(2), "the reserve first, though the HAR's group is higher");
+        // Now the shotgun is the reserve but empty, and the HAR has no bullets: nothing to switch to.
+        a.pools.iter_mut().find(|p| p.key == "cells").unwrap().count = 0;
+        a.pools.iter_mut().find(|p| p.key == "bullets").unwrap().count = 0;
+        assert_eq!(run(&mut a, &mut s, 40), None);
+    }
+
+    #[test]
+    fn a_weapon_selected_while_empty_does_not_auto_switch() {
+        let (mut a, _) = setup(true);
+        // Selected (synced) while already empty: emptyWhenSelected (idWeapon+0x1554) holds the weapon.
+        let mut s2 = WeaponSelect::new(&a);
+        s2.auto_switch_on_empty = true;
+        assert_eq!(run(&mut a, &mut s2, 40), None);
+        // Ammo added clears it; emptied again, it switches.
+        a.pools.iter_mut().find(|p| p.key == "shells").unwrap().count = 3;
+        run(&mut a, &mut s2, 1);
+        a.pools.iter_mut().find(|p| p.key == "shells").unwrap().count = 0;
+        assert_eq!(run(&mut a, &mut s2, 5).map(|r| r.0), Some(1));
+    }
+}

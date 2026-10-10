@@ -29,6 +29,10 @@ pub const HANDS_AUTO_DRYFIRE: bool = false;
 pub const HANDS_FORCE_DRYFIRE: bool = false;
 /// hands_forceInterruptibleTransition (default 0).
 pub const HANDS_FORCE_INTERRUPTIBLE: bool = false;
+/// g_forceWeaponSwitchOnDryFire (default 0; idCVar 0x1444d1140, read at 0x140d5a773).
+pub const FORCE_WEAPON_SWITCH_ON_DRY_FIRE: bool = false;
+/// g_weaponAutoSwitchRequiresEmpty (default 0; idCVar 0x1444d1280, read at 0x140d5a70f).
+pub const AUTO_SWITCH_REQUIRES_EMPTY: bool = false;
 /// hands_weaponLoadedBlendSpringK (default 500).
 pub const HANDS_WEAPON_LOADED_SPRING_K: f32 = 500.0;
 /// hands_allowMeleeInterrupt: a MELEE may interrupt the transition back to idle.
@@ -513,6 +517,9 @@ pub struct Hands {
     /// The fire mode changed this frame: the hands re-read shootAnimRate / shootDelayScale (0x140d66230 /
     /// 0x140d66080).
     mode_changed: bool,
+    /// g_weaponAutoSwitchOnEmpty (engineCVar_t +0x48, read at 0x140d5a6ca); default
+    /// [`super::select::AUTO_SWITCH_ON_EMPTY`].
+    pub auto_switch_on_empty: bool,
 }
 
 impl Hands {
@@ -549,6 +556,7 @@ impl Hands {
             altfire_last: false,
             seen_fire_mode: None,
             mode_changed: false,
+            auto_switch_on_empty: super::select::AUTO_SWITCH_ON_EMPTY,
         }
     }
 
@@ -2507,9 +2515,19 @@ impl Hands {
         self.flags.and(F78, 0xfb);
     }
 
-    /// 0x140d5a6b0: with g_forceWeaponSwitchOnDryFire 0 (default) it never switches; the auto switch on
-    /// empty (g_weaponAutoSwitchOnEmpty) lives on the player side and is not ported.
-    fn switch_on_empty(&mut self, _arsenal: &Arsenal) {}
+    /// 0x140d5a6b0 (shoot end, dry-fire end, ae_weaponSwitchOnEmpty): returns at once with
+    /// g_weaponAutoSwitchOnEmpty 0 (engineCVar_t +0x48 -> idCVar 0x1446523b0, value +0x30, 0x140d5a6ce). With it on,
+    /// g_weaponAutoSwitchRequiresEmpty 1 keeps a weapon with ammo in either fire mode (0x140f166b0), the weapon's
+    /// vfunc +0x338 can veto, and the switch itself (0x140e433b0, or 0x140e42530 while hands+0xfab0 is set) only
+    /// runs with g_forceWeaponSwitchOnDryFire 1 (0x140d5a773). With the shipped defaults the hands never switch;
+    /// the auto switch on empty is idPlayer::UpdateWeapon's (weapons::select::WeaponSelect::auto_switch_on_empty).
+    fn switch_on_empty(&mut self, _arsenal: &Arsenal) {
+        if !self.auto_switch_on_empty || !FORCE_WEAPON_SWITCH_ON_DRY_FIRE {
+            return;
+        }
+        // INTERIM: the forced switch (AUTO_SWITCH_REQUIRES_EMPTY ammo check, vfunc +0x338, 0x140e433b0 / 0x140e42530)
+        // is not ported; g_forceWeaponSwitchOnDryFire is a constant 0 here, so this is never reached.
+    }
 
     /// idHands::FireWeapon 0x140d5e1d0 (slot 2, not deferred). No CanFire / nextFireTime check: the gate
     /// was idWeapon::CanFire when the FIRE action was requested.
