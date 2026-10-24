@@ -15,6 +15,7 @@ use glam::Vec3;
 use idres::decl::Block;
 use idres::decldb::DeclDb;
 
+use super::rotate_point_neg;
 use crate::animweb::{AnimWebRuntime, FiredEvent};
 use crate::player::Spring;
 
@@ -247,6 +248,10 @@ pub struct Spring2 {
 }
 
 const TINY: f32 = 1.175_494_4e-38;
+
+/// The player's gravity normal (vslot 0xd0, physics gravityNormal): physics.rs builds gravity straight down and
+/// normalises it, so (0, 0, -1).
+const GRAVITY_NORMAL: [f32; 3] = [0.0, 0.0, -1.0];
 
 fn inv_sqrt(x: f32) -> f32 {
     let m = if x > TINY { x } else { TINY };
@@ -546,10 +551,10 @@ impl HandsBobCycle {
 
     /// Input bookkeeping of 0x140d83120: velocity in the view's yaw frame, no-input time, idle delays.
     fn inputs(&mut self, cv: &BobCycleCvars, inp: &BobCycleInput) -> Vec3 {
-        let (sy, cy) = (inp.view_yaw.to_radians().sin(), inp.view_yaw.to_radians().cos());
-        let v = inp.velocity;
-        // idRotation(gravity normal, -yaw).RotatePoint: the velocity in the yaw frame (x forward, y left).
-        let local = Vec3::new(v.x * cy + v.y * sy, v.y * cy - v.x * sy, 0.0);
+        // 0x1402ed980((vx, vy, 0), gravity normal, view yaw) = idRotation(vec3_origin, gravity normal, -yaw)
+        // .RotatePoint: the velocity in the yaw frame (x forward, y left).
+        let v = [inp.velocity.x, inp.velocity.y, 0.0];
+        let local = Vec3::from(rotate_point_neg(GRAVITY_NORMAL, inp.view_yaw, v));
         if inp.forward_move == 0 && inp.right_move == 0 {
             self.no_input_time += inp.msec;
         } else {

@@ -19,7 +19,7 @@ use idres::decl::Block;
 use idres::decldb::DeclDb;
 
 use super::additive::{blend_frames, ChannelCmd};
-use super::inv_sqrt;
+use super::{inv_sqrt, rotate_point_neg};
 use crate::animweb::AnimWebRuntime;
 use crate::player::Spring;
 use crate::weapons::hands::HandsWeb;
@@ -661,8 +661,9 @@ impl HitReactions {
             self.move_distance = inp.amount;
         }
         self.play(web, d, idx, strength, inp.now);
-        let (s, c) = (inp.view_yaw.to_radians().sin(), inp.view_yaw.to_radians().cos());
-        self.world_hit_direction = Vec3::new(inp.dir.x * c - inp.dir.y * s, inp.dir.x * s + inp.dir.y * c, inp.dir.z);
+        // 0x140d882d0 turns the view-relative dir back into the world: 0x1402ed7d0(dir, (0, 0, 1), view yaw), i.e.
+        // idRotation(vec3_origin, (0, 0, 1) at 0x142fa5358, -yaw).RotatePoint(dir).
+        self.world_hit_direction = Vec3::from(rotate_point_neg([0.0, 0.0, 1.0], inp.view_yaw, inp.dir.into()));
         Some(idx)
     }
 

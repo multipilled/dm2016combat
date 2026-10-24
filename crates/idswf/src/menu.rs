@@ -142,7 +142,7 @@ pub fn pages(cvars: &dyn CvarStore) -> Vec<Page> {
                 v.extend([
                     item("#str_menu_game_autoswitchempty_label", "#str_menu_game_autoswitchempty_help", Toggle { cvar: "g_weaponAutoSwitchOnEmpty", invert: false, on: "1" }),
                     item("#str_menu_game_autoswitchnew_label", "#str_menu_game_autoswitchnew_help", Unsupported { choices: OFF_ON }),
-                    // INTERIM: g_weaponDoomClassicPose is stored but nothing reads it: the classic pose touches the bit-exact hands path and needs the exact-match check on TD's PC.
+                    // INTERIM: g_weaponDoomClassicPose is stored but nothing reads it: the classic pose touches the bit-exact hands path and needs the exact-match check on the owner's PC.
                     item("#str_gameoptions_doom_classic_weapon_pose_header", "#str_gameoptions_doom_classic_weapon_pose_header_desc", Toggle { cvar: "g_weaponDoomClassicPose", invert: false, on: "1" }),
                     item("#str_gameoptions_crosshair_style_header", "#str_gameoptions_crosshair_style_header_desc", List {
                         cvar: "g_reticleMode",

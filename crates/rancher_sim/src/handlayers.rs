@@ -19,6 +19,7 @@
 
 pub mod additive;
 pub mod bobcycle;
+pub mod crtmath;
 pub mod reactions;
 
 use anyhow::{Context, Result};
@@ -54,11 +55,28 @@ pub type IdMat3 = [[f32; 3]; 3];
 
 pub const IDENTITY: IdMat3 = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
 
+/// The C runtime's `sinf` as the exe links it (0x141ed3170), ported in [`crtmath`]: idAngles::ToMat3 / ToForward,
+/// idRotation::ToMat3 and the weapon bob call it, and the dev machine's float `sinf` can land 1 ULP away, which
+/// the lag pendulum grows to 25 ULPs within 3 frames. The non-FMA branch is bit-exact against the exe on the
+/// 1,234,669-argument sweep (tools/crt_sincos_sweep.py). INTERIM: the exe takes a separate FMA3 branch
+/// (0x141ed3510, chosen by the flag at 0x1521ace24 on CPUs with FMA3) that is not ported or compared; it is queued
+/// for an install-backed check.
+#[inline]
+pub(crate) fn crt_sinf(x: f32) -> f32 {
+    crtmath::sinf(x)
+}
+
+/// The C runtime's `cosf` as the exe links it (0x141ed2c70); see [`crt_sinf`].
+#[inline]
+pub(crate) fn crt_cosf(x: f32) -> f32 {
+    crtmath::cosf(x)
+}
+
 /// idAngles::ToMat3 (0x1402d90c0): rows are forward, left, up. Angles are [pitch, yaw, roll] in degrees.
 pub fn angles_to_mat3(a: [f32; 3]) -> IdMat3 {
-    let (sy, cy) = ((a[1] * DEG2RAD).sin(), (a[1] * DEG2RAD).cos());
-    let (sp, cp) = ((a[0] * DEG2RAD).sin(), (a[0] * DEG2RAD).cos());
-    let (sr, cr) = ((a[2] * DEG2RAD).sin(), (a[2] * DEG2RAD).cos());
+    let (sy, cy) = (crt_sinf(a[1] * DEG2RAD), crt_cosf(a[1] * DEG2RAD));
+    let (sp, cp) = (crt_sinf(a[0] * DEG2RAD), crt_cosf(a[0] * DEG2RAD));
+    let (sr, cr) = (crt_sinf(a[2] * DEG2RAD), crt_cosf(a[2] * DEG2RAD));
     [
         [cp * cy, cp * sy, -sp],
         [sr * sp * cy - cr * sy, sr * sp * sy + cr * cy, sr * cp],
@@ -68,17 +86,17 @@ pub fn angles_to_mat3(a: [f32; 3]) -> IdMat3 {
 
 /// idAngles::ToForward (0x1402d9030).
 pub fn angles_to_forward(a: [f32; 3]) -> [f32; 3] {
-    let cp = (a[0] * DEG2RAD).cos();
-    let cy = (a[1] * DEG2RAD).cos();
-    let sy = (a[1] * DEG2RAD).sin();
-    let sp = (a[0] * DEG2RAD).sin();
+    let cp = crt_cosf(a[0] * DEG2RAD);
+    let cy = crt_cosf(a[1] * DEG2RAD);
+    let sy = crt_sinf(a[1] * DEG2RAD);
+    let sp = crt_sinf(a[0] * DEG2RAD);
     [cy * cp, sy * cp, -sp]
 }
 
 /// idRotation::ToMat3 (0x1402ea9d0) for a rotation of `deg` degrees about the unit vector `v`.
 pub fn rotation_to_mat3(v: [f32; 3], deg: f32) -> IdMat3 {
     let a = deg * 0.008726646;
-    let (s, c) = (a.sin(), a.cos());
+    let (s, c) = (crt_sinf(a), crt_cosf(a));
     let (x, y, z) = (s * v[0], s * v[1], s * v[2]);
     let (y2, z2) = (y + y, z + z);
     let wx = (x + x) * c;
@@ -101,6 +119,21 @@ pub fn rotate_mat3(m: &mut IdMat3, axis: [f32; 3], rad: f32) {
         }
     }
     *m = out;
+}
+
+/// `p` turned by idRotation(vec3_origin, `axis`, -`deg`): 0x1402ed7d0 / 0x1402ed980 negate the angle they are given
+/// and call idRotation::RotatePoint (0x140285860), which builds the matrix with ToMat3 (0x1402ea9d0, so `crt_sinf` /
+/// `crt_cosf` of the half angle) and returns `origin + (p - origin) * mat`, summed in the exe's order. vec3_origin
+/// (0x144145bd0) is zero, which still turns a -0 component into +0.
+pub fn rotate_point_neg(axis: [f32; 3], deg: f32, p: [f32; 3]) -> [f32; 3] {
+    let m = rotation_to_mat3(axis, -deg);
+    let o = [0.0f32; 3];
+    let d = [p[0] - o[0], p[1] - o[1], p[2] - o[2]];
+    [
+        o[0] + ((d[1] * m[1][0] + d[0] * m[0][0]) + d[2] * m[2][0]),
+        o[1] + ((d[0] * m[0][1] + d[1] * m[1][1]) + d[2] * m[2][1]),
+        o[2] + ((d[0] * m[0][2] + d[1] * m[1][2]) + d[2] * m[2][2]),
+    ]
 }
 
 /// Converts an idMat3 (row vectors, `p' = p * m`) to the glam column-vector matrix with the same effect.
@@ -633,13 +666,13 @@ impl WeaponBob {
         let (ta, tv, tp) =
             (prm.translation_amplitudes, prm.translation_angular_velocities, prm.translation_phase_angles);
         self.position =
-            [ph(tv[0], tp[0]).cos() * ta[0], ph(tv[1], tp[1]).sin() * ta[1], ph(tv[2], tp[2]).cos() * ta[2]];
+            [crt_cosf(ph(tv[0], tp[0])) * ta[0], crt_sinf(ph(tv[1], tp[1])) * ta[1], crt_cosf(ph(tv[2], tp[2])) * ta[2]];
         let (ra, rv, rp) = (prm.rotational_amplitudes, prm.rotational_angular_velocities, prm.rotational_phase_angles);
         // idAngles order is [pitch, yaw, roll]; the orient is stored [roll, pitch, yaw].
         self.orient = [
-            ph(rv[2], rp[2]).cos() * ra[2] * DEG2RAD,
-            ph(rv[0], rp[0]).cos() * ra[0] * DEG2RAD,
-            ph(rv[1], rp[1]).cos() * ra[1] * DEG2RAD,
+            crt_cosf(ph(rv[2], rp[2])) * ra[2] * DEG2RAD,
+            crt_cosf(ph(rv[0], rp[0])) * ra[0] * DEG2RAD,
+            crt_cosf(ph(rv[1], rp[1])) * ra[1] * DEG2RAD,
         ];
         step
     }
@@ -1217,6 +1250,73 @@ mod tests {
         let none = HandsLayerDecl::from_edit(&Block::default());
         assert_eq!(none.hands_fov_scale, 0.7);
         assert!(!none.lag.enable && !none.bob.enable);
+    }
+
+    /// 0x1402ed7d0 (hit reactions: dir about (0, 0, 1)) and 0x1402ed980 (bob: velocity about the gravity normal)
+    /// under emulation, both turning by -yaw. Every case here came out 1 to 18 ULPs off with the former
+    /// `to_radians().sin()` / `cos()` rotation.
+    #[test]
+    fn rotate_point_neg_matches_engine() {
+        let cases: [([f32; 3], f32, [f32; 3], [u32; 3]); 5] = [
+            ([0.0, 0.0, 1.0], -61.7, [-0.28, 0.96, 0.0], [0x3f36674a, 0x3f339fe0, 0]),
+            ([0.0, 0.0, 1.0], 200.1, [0.36, -0.48, 0.8], [0xbf00c69e, 0x3ea772cc, 0x3f4ccccd]),
+            ([0.0, 0.0, -1.0], -33.3, [300.0, -120.0, 0.0], [0x439e4ffe, 0x4280d1ea, 0]),
+            ([0.0, 0.0, -1.0], 271.1, [0.0, 250.0, 0.0], [0xc379f434, 0x40999504, 0]),
+            ([0.0, 0.0, -1.0], 47.9, [412.5, 77.25, 0.0], [0x43a6ef2e, 0xc37e464d, 0]),
+        ];
+        for (axis, yaw, p, want) in cases {
+            let got = rotate_point_neg(axis, std::hint::black_box(yaw), p).map(f32::to_bits);
+            assert_eq!(got, want, "yaw {yaw} p {p:?}");
+        }
+    }
+
+    /// The C runtime's sinf / cosf (0x141ed3170 / 0x141ed2c70), recorded from the exe under emulation: the
+    /// arguments the frame replay hands them (tools/handlayers_emu.py --frames, frames 0 and 1), then arguments
+    /// from tools/crt_sincos_sweep.py where a correctly rounded double sine or cosine misses the exe by 1 ULP.
+    #[test]
+    fn crt_sincos_match_engine() {
+        // (argument, sinf, cosf) bit patterns.
+        const ENGINE: [(u32, u32, u32); 30] = [
+            (0x3e685696, 0x3e665991, 0x3f797051), // yaw 13 degrees: the dev machine's float sinf gives 0x3e665992
+            (0xbdb2b8c2, 0xbdb27eb5, 0x3f7f069e),
+            (0x3e4d87ac, 0x3e4c271b, 0x3f7adc58),
+            (0xbb64c1ee, 0xbb64c1d0, 0x3f7fff9a),
+            (0xbb64c387, 0xbb64c369, 0x3f7fff9a),
+            (0x38870b71, 0x38870b71, 0x3f800000),
+            (0x2f51b4d9, 0x2f51b4d9, 0x3f800000),
+            (0x80000000, 0x80000000, 0x3f800000),
+            (0x00000000, 0x00000000, 0x3f800000),
+            (0x3fc90fdb, 0x3f800000, 0xb33bbd2e),
+            (0xc14156e8, 0x3eeda294, 0x3f62c199), // degrees: the double model gave sinf 0x3eeda293
+            (0xc13ecaa4, 0x3f19457e, 0x3f4d0bc7), // degrees: the double model gave sinf 0x3f19457d
+            (0xc13d138f, 0x3f2e547e, 0x3f3b7858), // degrees: the double model gave sinf 0x3f2e547d
+            (0xc13c6f91, 0x3f35b1b0, 0x3f345790), // degrees: the double model gave sinf 0x3f35b1b1
+            (0xc13c551d, 0x3f36dae1, 0x3f332a35), // degrees: the double model gave cosf 0x3f332a34
+            (0xc1242ce9, 0x3f3df9c3, 0xbf2b98a2), // degrees: the double model gave cosf 0xbf2b98a1
+            (0xc1242256, 0x3f3d8831, 0xbf2c160a), // degrees: the double model gave cosf 0xbf2c1609
+            (0xc0b47481, 0x3f19b1d9, 0x3f4cba9b), // bob phase: the double model gave sinf 0x3f19b1d8
+            (0xc0afd7bd, 0x3f3581fd, 0x3f348793), // bob phase: the double model gave cosf 0x3f348792
+            (0xc0817ef6, 0x3f495974, 0xbf1e18a1), // bob phase: the double model gave cosf 0xbf1e18a0
+            (0xc07d0a5c, 0x3f39cc96, 0xbf301c1e), // bob phase: the double model gave cosf 0xbf301c1d
+            (0xc0773ce1, 0x3f291733, 0xbf40358c), // bob phase: the double model gave sinf 0x3f291732
+            (0xc018e858, 0xbf2ef363, 0xbf3ae418), // bob phase: the double model gave sinf 0xbf2ef362
+            (0xbf6de161, 0xbf4d1866, 0x3f19349a), // bob phase: the double model gave cosf 0x3f193499
+            (0xc0e271db, 0xbf366dae, 0x3f339964), // random: the double model gave cosf 0x3f339963
+            (0xc10aceef, 0xbf2e5c3e, 0xbf3b7123), // random: the double model gave sinf 0xbf2e5c3d
+            (0xc01a1cc1, 0xbf2b66e5, 0xbf3e26a4), // random: the double model gave sinf 0xbf2b66e4
+            (0x3f359d1c, 0x3f26c22c, 0x3f423c68), // random: the double model gave sinf 0x3f26c22b
+            (0x413be607, 0xbf3ba56f, 0x3f2e23f5), // random: the double model gave cosf 0x3f2e23f4
+            (0xc0aedb48, 0x3f3afbf3, 0x3f2ed9e4), // random: the double model gave cosf 0x3f2ed9e3
+        ];
+        for (x, s, c) in ENGINE {
+            let a = std::hint::black_box(f32::from_bits(x));
+            assert_eq!(crt_sinf(a).to_bits(), s, "sinf({x:#010x})");
+            assert_eq!(crt_cosf(a).to_bits(), c, "cosf({x:#010x})");
+        }
+        // cosf-only arguments from the bob (0x140d8c560 / 0x140d8c63a / 0x140d8c683).
+        for (x, c) in [(0x3c71ce19u32, 0x3f7ff8ddu32), (0x3fcaf377, 0xbc71cbf0), (0x3bf1ce19, 0x3f7ffe37)] {
+            assert_eq!(crt_cosf(std::hint::black_box(f32::from_bits(x))).to_bits(), c, "cosf({x:#010x})");
+        }
     }
 
     /// tools/handlayers_emu.py --frames: 90 frames of idHands lag + bob + joint mods run in the engine under
